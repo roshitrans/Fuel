@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes"/>
+<title>Roshi Logistics Intelligence Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* ═══════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════ */
+:root {
+  --desert: #A36B23;
+  --ronchi: #EDCE4D;
+  --cream: #F8F0E2;
+  --galliano: #E3B209;
+  --dark-desert: #7a5019;
+  --light-desert: #c4862d;
+  --card-bg: #FFFCF5;
+  --bg: #F2E9D8;
+  --border: rgba(163,107,35,0.15);
+  --shadow: 0 4px 24px rgba(163,107,35,0.12);
+  --shadow-lg: 0 8px 48px rgba(163,107,35,0.18);
+  --text-dark: #2C1A06;
+  --text-mid: #6B4C1E;
+  --text-light: #A38054;
+  --green: #2E9E6B;
+  --red: #D94F2E;
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text-dark);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0; opacity: 0.5;
+}
+
+/* ═══════════════════════════════════════════
+   TOP HEADER BAR
+═══════════════════════════════════════════ */
+.header {
+  background: var(--desert);
+  padding: 0 32px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky; top: 0; z-index: 200;
+  box-shadow: 0 2px 20px rgba(0,0,0,0.25);
+}
+.header::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--ronchi), transparent);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-icon {
+  width: 34px; height: 34px; background: var(--ronchi); border-radius: 8px;
+  display: grid; place-items: center; font-size: 17px; color: var(--dark-desert);
+  font-weight: 800; font-family: 'Syne', sans-serif; flex-shrink: 0;
+}
+.brand-text { color: var(--cream); font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; line-height: 1.1; }
+.brand-sub { font-size: 9px; color: rgba(248,240,226,0.55); font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; }
+
+.header-right { display: flex; align-items: center; gap: 12px; }
+.state-selector { display: flex; align-items: center; gap: 8px; color: var(--cream); }
+.state-selector label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.65; white-space: nowrap; }
+.state-select {
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(248,240,226,0.28);
+  color: var(--cream); padding: 7px 30px 7px 12px; border-radius: 8px;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+  cursor: pointer; outline: none; transition: all 0.2s; min-width: 140px;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23F8F0E2' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.state-select:hover { background-color: rgba(255,255,255,0.18); }
+.state-select option { background: var(--dark-desert); color: var(--cream); }
+
+/* ═══════════════════════════════════════════
+   TAB NAVIGATION
+═══════════════════════════════════════════ */
+.tab-nav {
+  background: var(--dark-desert);
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  position: sticky; top: 64px; z-index: 190;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  padding: 0 20px;
+  height: 46px;
+  background: none;
+  border: none;
+  color: rgba(248,240,226,0.55);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  transition: color 0.2s;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.tab-btn .tab-icon { font-size: 14px; }
+.tab-btn::after {
+  content: '';
+  position: absolute; bottom: 0; left: 20px; right: 20px; height: 2px;
+  background: var(--ronchi); border-radius: 2px 2px 0 0;
+  transform: scaleX(0); transition: transform 0.2s;
+}
+.tab-btn:hover { color: rgba(248,240,226,0.85); }
+.tab-btn.active { color: var(--cream); }
+.tab-btn.active::after { transform: scaleX(1); }
+
+/* ═══════════════════════════════════════════
+   TAB PANELS
+═══════════════════════════════════════════ */
+.tab-panel { display: none; position: relative; z-index: 1; }
+.tab-panel.active { display: block; }
+
+/* ═══════════════════════════════════════════
+   SHARED LAYOUT
+═══════════════════════════════════════════ */
+.container {
+  max-width: 1200px; margin: 0 auto;
+  padding: 28px 24px 60px;
+  position: relative; z-index: 1;
+}
+
+.section-title {
+  font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--desert);
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-title::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--galliano), transparent);
+}
+
+.card {
+  background: var(--card-bg); border-radius: var(--radius);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.45s ease both; }
+
+/* ═══════════════════════════════════════════
+   FUEL DASHBOARD — SECTION 1: PRICE HERO
+═══════════════════════════════════════════ */
+.price-hero {
+  background: var(--card-bg); border-radius: var(--radius);
+  border: 2px solid var(--galliano);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(227,178,9,0.1);
+  padding: 38px 32px; text-align: center;
+  position: relative; overflow: hidden; margin-bottom: 26px;
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+.price-hero::before {
+  content: ''; position: absolute; top: -60px; right: -60px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(237,206,77,0.14) 0%, transparent 70%);
+  pointer-events: none;
+}
+.price-hero:hover { transform: translateY(-2px); box-shadow: 0 12px 56px rgba(163,107,35,0.22); }
+.price-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(163,107,35,0.1); border: 1px solid rgba(163,107,35,0.2);
+  color: var(--desert); padding: 4px 13px; border-radius: 100px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px;
+}
+.price-badge::before { content: '⚡'; }
+.price-label { font-size: 12px; font-weight: 500; color: var(--text-light); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 7px; }
+.price-big {
+  font-family: 'Syne', sans-serif; font-size: 64px; font-weight: 800;
+  color: var(--text-dark); line-height: 1; letter-spacing: -0.01em;
+}
+.price-big span { color: var(--desert); font-size: 0.5em; vertical-align: super; margin-right: 2px; }
+.price-unit { font-size: 16px; color: var(--text-light); font-weight: 400; margin-left: 4px; }
+.price-location { margin-top: 10px; font-size: 14px; color: var(--text-mid); font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.price-location::before { content: '📍'; font-size: 14px; }
+.price-updated { margin-top: 7px; font-size: 11px; color: var(--text-light); letter-spacing: 0.05em; }
+.price-edit-row { margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.price-input {
+  width: 128px; padding: 9px 13px; border-radius: 8px;
+  border: 1.5px solid var(--border); background: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text-dark);
+  outline: none; text-align: center; font-weight: 600; transition: border-color 0.2s;
+}
+.price-input:focus { border-color: var(--galliano); }
+
+/* ═══════════════════════════════════════════
+   SHARED BUTTONS
+═══════════════════════════════════════════ */
+.btn-primary {
+  padding: 9px 20px; background: var(--desert); color: var(--cream);
+  border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; letter-spacing: 0.03em;
+}
+.btn-primary:hover { background: var(--dark-desert); transform: translateY(-1px); }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+.btn-full { width: 100%; padding: 13px; }
+
+/* ═══════════════════════════════════════════
+   SECTION 2: FORECAST
+═══════════════════════════════════════════ */
+.forecast-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 26px; }
+.forecast-card {
+  background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);
+  box-shadow: var(--shadow); padding: 22px 18px; text-align: center;
+  position: relative; overflow: hidden; transition: transform 0.25s, box-shadow 0.25s;
+}
+.forecast-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.forecast-card.day1::before { background: var(--galliano); }
+.forecast-card.day2::before { background: var(--ronchi); }
+.forecast-card.day3::before { background: var(--light-desert); }
+.forecast-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+.forecast-day { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-light); margin-bottom: 11px; }
+.forecast-price { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--text-dark); line-height: 1; margin-bottom: 9px; letter-spacing: -0.01em; }
+.forecast-price small { font-size: 14px; color: var(--desert); font-weight: 600; }
+.forecast-arrow { display: inline-flex; align-items: center; gap: 4px; padding: 4px 11px; border-radius: 100px; font-size: 12px; font-weight: 600; }
+.arrow-up { background: rgba(227,178,9,0.12); color: #B8880A; }
+.arrow-down { background: rgba(46,158,107,0.12); color: var(--green); }
+.forecast-diff { font-size: 11px; color: var(--text-light); margin-top: 7px; }
+
+/* ═══════════════════════════════════════════
+   SECTION 3: TREND METER
+═══════════════════════════════════════════ */
+.meter-card {
+  background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border);
+  box-shadow: var(--shadow); padding: 28px 24px; display: flex; align-items: center; gap: 36px;
+  flex-wrap: wrap; margin-bottom: 26px;
+}
+.gauge-wrapper { flex-shrink: 0; position: relative; width: 180px; height: 90px; }
+.gauge-svg { width: 180px; height: 110px; }
+.gauge-label { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); text-align: center; white-space: nowrap; }
+.gauge-status { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: var(--text-dark); }
+.gauge-sub { font-size: 10px; color: var(--text-light); margin-top: 1px; letter-spacing: 0.08em; text-transform: uppercase; }
+.meter-info { flex: 1; min-width: 200px; }
+.meter-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; color: var(--text-dark); margin-bottom: 7px; }
+.meter-desc { font-size: 13px; color: var(--text-mid); line-height: 1.6; margin-bottom: 14px; }
+.meter-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.meter-pill { padding: 5px 12px; border-radius: 100px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; cursor: pointer; border: 1.5px solid transparent; transition: all 0.2s; }
+.pill-stable { background: rgba(46,158,107,0.1); color: var(--green); border-color: rgba(46,158,107,0.25); }
+.pill-slight { background: rgba(237,206,77,0.15); color: #8C7200; border-color: rgba(237,206,77,0.4); }
+.pill-high   { background: rgba(227,178,9,0.12); color: #8C5E00; border-color: rgba(227,178,9,0.35); }
+.pill-drop   { background: rgba(46,158,107,0.08); color: var(--green); border-color: rgba(46,158,107,0.2); }
+.pill-active { transform: scale(1.05); box-shadow: 0 2px 12px rgba(163,107,35,0.2); }
+
+/* ═══════════════════════════════════════════
+   SECTION 4: MARKET SIGNALS
+═══════════════════════════════════════════ */
+.signals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 26px; }
+.signals-card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); padding: 22px 20px; }
+.signal-item { display: flex; align-items: center; gap: 11px; padding: 9px 6px; border-bottom: 1px solid rgba(163,107,35,0.07); transition: background 0.2s; border-radius: 6px; }
+.signal-item:last-child { border-bottom: none; }
+.signal-item:hover { background: rgba(163,107,35,0.04); }
+.signal-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-red { background: var(--red); box-shadow: 0 0 6px rgba(217,79,46,0.5); }
+.dot-amber { background: var(--galliano); box-shadow: 0 0 6px rgba(227,178,9,0.5); }
+.dot-orange { background: var(--desert); box-shadow: 0 0 6px rgba(163,107,35,0.5); }
+.dot-yellow { background: var(--ronchi); box-shadow: 0 0 6px rgba(237,206,77,0.5); }
+.signal-text { font-size: 13px; font-weight: 500; color: var(--text-dark); flex: 1; }
+.signal-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 100px; letter-spacing: 0.06em; text-transform: uppercase; }
+.badge-high { background: rgba(217,79,46,0.1); color: var(--red); }
+.badge-med  { background: rgba(227,178,9,0.1); color: #8C5E00; }
+.badge-low  { background: rgba(163,107,35,0.1); color: var(--desert); }
+.news-sources { display: flex; flex-direction: column; gap: 7px; }
+.news-link { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 8px; background: rgba(163,107,35,0.04); border: 1px solid rgba(163,107,35,0.1); text-decoration: none; color: var(--text-dark); font-size: 13px; font-weight: 500; transition: all 0.2s; }
+.news-link:hover { background: rgba(163,107,35,0.09); border-color: rgba(163,107,35,0.2); transform: translateX(3px); color: var(--desert); }
+.news-icon { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; font-size: 13px; flex-shrink: 0; }
+.news-arrow { margin-left: auto; color: var(--text-light); font-size: 12px; }
+
+/* ═══════════════════════════════════════════
+   SECTION 5: CHART
+═══════════════════════════════════════════ */
+.chart-card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); padding: 26px 22px; margin-bottom: 26px; }
+.chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+.chart-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-dark); }
+.chart-stats { display: flex; gap: 18px; }
+.chart-stat { text-align: right; }
+.chart-stat-val { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-dark); }
+.chart-stat-lbl { font-size: 10px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.08em; }
+.chart-wrapper { position: relative; height: 210px; }
+
+/* ═══════════════════════════════════════════
+   SECTION 6: CALCULATOR
+═══════════════════════════════════════════ */
+.calc-card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); padding: 26px; margin-bottom: 26px; }
+.calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+.input-group { display: flex; flex-direction: column; gap: 5px; position: relative; }
+.input-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-light); }
+.input-field {
+  padding: 11px 13px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border); background: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: var(--text-dark);
+  outline: none; transition: border-color 0.2s, box-shadow 0.2s; width: 100%;
+}
+.input-field:focus { border-color: var(--galliano); box-shadow: 0 0 0 3px rgba(227,178,9,0.1); }
+.cost-output {
+  background: linear-gradient(135deg, rgba(163,107,35,0.07), rgba(237,206,77,0.11));
+  border: 1.5px solid rgba(227,178,9,0.28); border-radius: 12px; padding: 18px 22px;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+}
+.cost-label { font-size: 13px; color: var(--text-mid); font-weight: 500; line-height: 1.5; }
+.cost-amount { font-family: 'Syne', sans-serif; font-size: 30px; font-weight: 800; color: var(--galliano); text-shadow: 0 2px 8px rgba(227,178,9,0.3); white-space: nowrap; letter-spacing: -0.01em; }
+
+/* ═══════════════════════════════════════════
+   SECTION 7: TRANSPORT TOGGLE
+═══════════════════════════════════════════ */
+.transport-card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); padding: 26px; margin-bottom: 26px; }
+.toggle-row { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.toggle-label { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-dark); }
+.toggle-switch { position: relative; width: 46px; height: 24px; cursor: pointer; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; inset: 0; background: rgba(163,107,35,0.2); border-radius: 12px; transition: 0.3s; }
+.toggle-slider::before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+.toggle-switch input:checked + .toggle-slider { background: var(--desert); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(22px); }
+.toggle-status { font-size: 12px; font-weight: 600; color: var(--text-light); }
+.toggle-status.active { color: var(--green); }
+.route-form { display: none; }
+.route-form.visible { display: block; }
+.route-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.route-result {
+  background: linear-gradient(135deg, rgba(163,107,35,0.05), rgba(227,178,9,0.09));
+  border: 1.5px solid rgba(227,178,9,0.22); border-radius: 12px; padding: 18px 22px;
+  margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+.route-stat { text-align: center; padding: 10px; }
+.route-stat-val { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--text-dark); line-height: 1; margin-bottom: 4px; letter-spacing: -0.01em; }
+.route-stat-lbl { font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+.route-highlight { color: var(--galliano); }
+.route-divider { width: 1px; background: rgba(163,107,35,0.15); margin: 0 auto; }
+
+/* ═══════════════════════════════════════════
+   SECTION 8: WHATSAPP
+═══════════════════════════════════════════ */
+.whatsapp-card {
+  background: linear-gradient(135deg, var(--desert), var(--dark-desert));
+  border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 28px;
+  margin-bottom: 26px; display: flex; align-items: center; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap; position: relative; overflow: hidden;
+}
+.whatsapp-card::before { content: ''; position: absolute; top: -30px; right: -30px; width: 160px; height: 160px; background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%); }
+.whatsapp-text { color: var(--cream); }
+.whatsapp-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 5px; }
+.whatsapp-desc { font-size: 13px; opacity: 0.7; line-height: 1.5; }
+.btn-whatsapp {
+  display: inline-flex; align-items: center; gap: 9px; padding: 12px 22px;
+  background: #25D366; color: #fff; border: none; border-radius: 10px;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.25s; white-space: nowrap; box-shadow: 0 4px 14px rgba(37,211,102,0.35);
+  letter-spacing: 0.02em; position: relative; z-index: 1; text-decoration: none;
+}
+.btn-whatsapp:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(37,211,102,0.42); background: #1fba5a; }
+
+/* ═══════════════════════════════════════════
+   ROUTE PLANNER — UNIFIED DESIGN
+═══════════════════════════════════════════ */
+.rp-hero {
+  background: var(--card-bg); border-radius: var(--radius);
+  border: 2px solid var(--galliano); box-shadow: var(--shadow-lg);
+  padding: 28px 28px 24px; margin-bottom: 24px; position: relative; overflow: hidden;
+}
+.rp-hero::before {
+  content: ''; position: absolute; top: -50px; right: -50px;
+  width: 180px; height: 180px;
+  background: radial-gradient(circle, rgba(237,206,77,0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+.rp-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: var(--text-dark); margin-bottom: 4px; }
+.rp-subtitle { font-size: 13px; color: var(--text-light); margin-bottom: 22px; }
+.rp-input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.rp-form-group { display: flex; flex-direction: column; gap: 5px; position: relative; }
+
+/* Autocomplete suggestion dropdown */
+.suggestion-list {
+  position: absolute; background: var(--card-bg);
+  border: 1.5px solid var(--galliano); border-radius: 12px;
+  max-height: 240px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  width: 100%; z-index: 500; display: none;
+  box-shadow: 0 8px 28px rgba(163,107,35,0.18);
+  top: 100%; margin-top: 4px;
+}
+.suggestion-list.active { display: block; }
+.suggestion-item { padding: 12px 14px; cursor: pointer; border-bottom: 1px solid rgba(163,107,35,0.08); font-size: 13px; color: var(--text-dark); transition: background 0.15s; }
+.suggestion-item:last-child { border-bottom: none; }
+.suggestion-item:hover { background: rgba(163,107,35,0.05); }
+.suggestion-name { font-weight: 600; margin-bottom: 2px; }
+.suggestion-detail { font-size: 11px; color: var(--text-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Route result info card ── */
+.rp-result-card {
+  display: none; background: var(--card-bg); border-radius: var(--radius);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+  overflow: hidden; margin-bottom: 22px;
+}
+.rp-result-card.active { display: block; }
+
+.rp-approved-banner {
+  background: linear-gradient(135deg, rgba(46,158,107,0.12), rgba(46,158,107,0.06));
+  border-bottom: 1px solid rgba(46,158,107,0.2);
+  padding: 14px 22px; text-align: center;
+}
+.rp-approved-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: #1B6B45; margin-bottom: 3px; }
+.rp-approved-sub { font-size: 11px; color: #2E7D4F; font-weight: 500; }
+
+.rp-stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 0; }
+.rp-stat-box { padding: 20px 16px; text-align: center; border-right: 1px solid var(--border); }
+.rp-stat-box:last-child { border-right: none; }
+.rp-stat-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-light); margin-bottom: 6px; }
+.rp-stat-val { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: var(--text-dark); line-height: 1; letter-spacing: -0.01em; word-break: break-all; }
+
+.rp-points { padding: 18px 22px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 0; }
+.rp-point { display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid rgba(163,107,35,0.08); min-width: 0; }
+.rp-point:last-child { border-bottom: none; }
+.rp-point-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+.rp-icon-a { background: linear-gradient(135deg,#2E9E6B,#66BB6A); color: #fff; }
+.rp-icon-b { background: linear-gradient(135deg,var(--red),#EF5350); color: #fff; }
+.rp-point-text { flex: 1; min-width: 0; }
+.rp-point-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-light); }
+.rp-point-addr { font-size: 13px; color: var(--text-dark); font-weight: 500; margin-top: 2px; word-break: break-word; overflow-wrap: break-word; }
+
+/* ── Landmarks ── */
+.rp-landmarks-card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 22px; overflow: hidden; }
+.rp-landmarks-toggle {
+  width: 100%; padding: 14px 22px; background: none; border: none; border-bottom: 1px solid transparent;
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; color: var(--text-dark);
+  cursor: pointer; transition: background 0.2s;
+}
+.rp-landmarks-toggle:hover { background: rgba(163,107,35,0.04); }
+.rp-landmarks-toggle.open { border-bottom-color: var(--border); }
+.rp-toggle-chevron { font-size: 12px; color: var(--text-light); transition: transform 0.25s; }
+.rp-toggle-chevron.open { transform: rotate(180deg); }
+.rp-landmarks-body { display: none; padding: 16px 20px; }
+.rp-landmarks-body.open { display: block; }
+.rp-landmark-item { padding: 10px 14px; background: rgba(163,107,35,0.04); border-left: 3px solid var(--galliano); border-radius: 0 8px 8px 0; margin-bottom: 8px; }
+.rp-landmark-item:last-child { margin-bottom: 0; }
+.rp-landmark-name { font-size: 13px; font-weight: 600; color: var(--text-dark); }
+.rp-landmark-type { font-size: 11px; color: var(--text-light); margin-top: 1px; }
+
+/* ── Navigate button ── */
+.btn-navigate {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 14px; background: var(--green); color: #fff;
+  border: none; border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.25s;
+  box-shadow: 0 4px 14px rgba(46,158,107,0.35); letter-spacing: 0.04em; margin-top: 6px;
+}
+.btn-navigate:hover { background: #237a52; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(46,158,107,0.4); }
+
+/* ── Map ── */
+.rp-map-card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); padding: 20px; margin-bottom: 22px; }
+#rp-map { width: 100%; height: 440px; border-radius: var(--radius-sm); overflow: hidden; }
+
+/* ── Disclaimer ── */
+.rp-disclaimer {
+  background: rgba(163,107,35,0.05); border-left: 4px solid var(--galliano);
+  border-radius: 0 10px 10px 0; padding: 14px 18px;
+  font-size: 12px; color: var(--text-mid); line-height: 1.6; font-weight: 500;
+  margin-bottom: 22px;
+}
+
+/* ── Error / Loading ── */
+.rp-error { display: none; background: rgba(217,79,46,0.08); border: 1.5px solid rgba(217,79,46,0.3); color: var(--red); border-radius: 10px; padding: 14px 18px; font-size: 13px; font-weight: 600; margin-bottom: 18px; text-align: center; }
+.rp-error.active { display: block; }
+.rp-loading { display: none; text-align: center; padding: 28px; }
+.rp-loading.active { display: block; }
+.rp-spinner { width: 44px; height: 44px; border: 4px solid rgba(163,107,35,0.15); border-top: 4px solid var(--galliano); border-radius: 50%; animation: spin 0.9s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.rp-loading-text { font-size: 13px; color: var(--text-mid); font-weight: 600; }
+
+/* ═══════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════ */
+footer {
+  background: var(--desert); color: var(--cream);
+  padding: 26px 32px; text-align: center; position: relative; z-index: 1;
+}
+footer::before { content: ''; display: block; height: 2px; background: linear-gradient(90deg, transparent, var(--ronchi), transparent); margin-bottom: 18px; }
+.footer-brand { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.footer-copy { font-size: 12px; opacity: 0.6; }
+.footer-tagline { font-size: 11px; opacity: 0.5; margin-top: 5px; font-style: italic; }
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .header { padding: 0 14px; height: 58px; }
+  .header .brand-text { font-size: 14px; }
+  .state-selector label { display: none; }
+  .state-select { min-width: 120px; font-size: 12px; }
+  .tab-nav { padding: 0 10px; }
+  .tab-btn { padding: 0 14px; font-size: 12px; }
+  .container { padding: 16px 13px 50px; }
+  .forecast-grid { grid-template-columns: 1fr; }
+  .signals-grid { grid-template-columns: 1fr; }
+  .calc-grid { grid-template-columns: 1fr; }
+  .route-grid { grid-template-columns: 1fr; }
+  .rp-input-grid { grid-template-columns: 1fr; }
+  .rp-stats-grid { grid-template-columns: 1fr; }
+  .rp-stat-box { border-right: none; border-bottom: 1px solid var(--border); }
+  .rp-stat-box:last-child { border-bottom: none; }
+  .rp-stat-val { font-size: 22px; }
+  .meter-card { flex-direction: column; align-items: flex-start; gap: 18px; }
+  .gauge-wrapper { margin: 0 auto; }
+  .price-big { font-size: 48px; }
+  .price-hero { padding: 26px 16px; }
+  #rp-map { height: 320px; }
+  .route-result { grid-template-columns: 1fr; }
+  .route-divider { display: none; }
+}
+
+@media (max-width: 430px) {
+  .tab-btn span.tab-icon { display: none; }
+  .rp-stats-grid { grid-template-columns: 1fr 1fr; }
+  .rp-stat-box:nth-child(1),
+  .rp-stat-box:nth-child(2) { border-bottom: 1px solid var(--border); }
+  .rp-stat-box:nth-child(2) { border-right: none; }
+}
+
+.leaflet-control-attribution { display: none !important; }
+.section-gap { margin-bottom: 26px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════ -->
+<header class="header">
+  <div class="brand">
+    <div class="brand-icon">R</div>
+    <div>
+      <div class="brand-text">Roshi Logistics Platform</div>
+      <div class="brand-sub">Roshi Transport Corporation</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="state-selector">
+      <label>State</label>
+      <select class="state-select" id="stateSelect" onchange="updateState()">
+        <option value="Rajasthan">Rajasthan</option>
+        <option value="Delhi">Delhi</option>
+        <option value="Gujarat">Gujarat</option>
+        <option value="Maharashtra">Maharashtra</option>
+        <option value="Punjab">Punjab</option>
+        <option value="Haryana">Haryana</option>
+        <option value="Uttar Pradesh">Uttar Pradesh</option>
+        <option value="Madhya Pradesh">Madhya Pradesh</option>
+        <option value="Karnataka">Karnataka</option>
+        <option value="Tamil Nadu">Tamil Nadu</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════
+     TAB NAVIGATION
+═══════════════════════════════════════════ -->
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('fuel', this)">
+    <span class="tab-icon">⛽</span> Fuel Intelligence
+  </button>
+  <button class="tab-btn" onclick="switchTab('route', this)">
+    <span class="tab-icon">🗺️</span> Route Planner
+  </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     TAB 1: FUEL INTELLIGENCE
+═══════════════════════════════════════════ -->
+<div id="tab-fuel" class="tab-panel active">
+<main class="container">
+
+  <div class="section-title">Current Rate</div>
+  <div class="price-hero fade-up">
+    <div class="price-badge">Live Price</div>
+    <div class="price-label">Diesel Price Today</div>
+    <div class="price-big"><span>₹</span><span id="currentPriceDisplay">94.62</span><span class="price-unit">/ L</span></div>
+    <div class="price-location" id="locationDisplay">Rajasthan</div>
+    <div class="price-updated" id="lastUpdated">Last updated: Today, 06:00 AM IST</div>
+    <div class="price-edit-row">
+      <input type="number" class="price-input" id="manualPrice" step="0.01" min="80" max="130" placeholder="Enter price" value="94.62"/>
+      <button class="btn-primary" onclick="updatePrice()">Update Price</button>
+    </div>
+  </div>
+
+  <div class="section-title">3-Day Forecast</div>
+  <div class="forecast-grid">
+    <div class="forecast-card day1 fade-up" style="animation-delay:0.05s">
+      <div class="forecast-day">Tomorrow</div>
+      <div class="forecast-price"><small>₹</small><span id="f1Price">94.85</span></div>
+      <div class="forecast-arrow arrow-up" id="f1Arrow">↑ Rising</div>
+      <div class="forecast-diff" id="f1Diff">+₹0.23 from today</div>
+    </div>
+    <div class="forecast-card day2 fade-up" style="animation-delay:0.10s">
+      <div class="forecast-day">Day 2</div>
+      <div class="forecast-price"><small>₹</small><span id="f2Price">95.10</span></div>
+      <div class="forecast-arrow arrow-up" id="f2Arrow">↑ Rising</div>
+      <div class="forecast-diff" id="f2Diff">+₹0.48 from today</div>
+    </div>
+    <div class="forecast-card day3 fade-up" style="animation-delay:0.15s">
+      <div class="forecast-day">Day 3</div>
+      <div class="forecast-price"><small>₹</small><span id="f3Price">94.90</span></div>
+      <div class="forecast-arrow arrow-down" id="f3Arrow">↓ Dropping</div>
+      <div class="forecast-diff" id="f3Diff">+₹0.28 from today</div>
+    </div>
+  </div>
+
+  <div class="section-title">Diesel Trend Meter</div>
+  <div class="meter-card fade-up">
+    <div class="gauge-wrapper">
+      <svg class="gauge-svg" viewBox="0 0 180 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 90 A70 70 0 0 1 55 29" stroke="#2E9E6B" stroke-width="10" stroke-linecap="round" opacity="0.2"/>
+        <path d="M55 29 A70 70 0 0 1 90 20" stroke="#EDCE4D" stroke-width="10" stroke-linecap="round" opacity="0.2"/>
+        <path d="M90 20 A70 70 0 0 1 125 29" stroke="#E3B209" stroke-width="10" stroke-linecap="round" opacity="0.2"/>
+        <path d="M125 29 A70 70 0 0 1 160 90" stroke="#D94F2E" stroke-width="10" stroke-linecap="round" opacity="0.2"/>
+        <path id="gaugeGreen"  d="M20 90 A70 70 0 0 1 55 29"  stroke="#2E9E6B" stroke-width="10" stroke-linecap="round" opacity="0"/>
+        <path id="gaugeYellow" d="M55 29 A70 70 0 0 1 90 20"  stroke="#EDCE4D" stroke-width="10" stroke-linecap="round" opacity="0"/>
+        <path id="gaugeOrange" d="M90 20 A70 70 0 0 1 125 29" stroke="#E3B209" stroke-width="10" stroke-linecap="round" opacity="0"/>
+        <path id="gaugeRed"    d="M125 29 A70 70 0 0 1 160 90" stroke="#D94F2E" stroke-width="10" stroke-linecap="round" opacity="0"/>
+        <g id="gaugeNeedle" transform-origin="90 90" style="transform:rotate(-90deg);transition:transform 0.8s cubic-bezier(0.34,1.56,0.64,1);">
+          <line x1="90" y1="90" x2="90" y2="32" stroke="#2C1A06" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="90" cy="90" r="6" fill="#2C1A06"/>
+          <circle cx="90" cy="90" r="3" fill="#E3B209"/>
+        </g>
+        <text x="12"  y="108" font-size="7" fill="#2E9E6B" font-family="DM Sans" font-weight="600">Stable</text>
+        <text x="50"  y="20"  font-size="7" fill="#8C7200" font-family="DM Sans" font-weight="600">Slight↑</text>
+        <text x="86"  y="11"  font-size="7" fill="#8C5E00" font-family="DM Sans" font-weight="600">High↑</text>
+        <text x="128" y="108" font-size="7" fill="#D94F2E" font-family="DM Sans" font-weight="600">Drop</text>
+      </svg>
+      <div class="gauge-label">
+        <div class="gauge-status" id="gaugeStatus">Slight Rise</div>
+        <div class="gauge-sub">Current Trend</div>
+      </div>
+    </div>
+    <div class="meter-info">
+      <div class="meter-title">Market Trend Indicator</div>
+      <div class="meter-desc" id="meterDesc">Prices are showing a mild upward trend. Consider filling fuel tanks before tomorrow's potential rise.</div>
+      <div class="meter-pills">
+        <span class="meter-pill pill-stable" onclick="setMeter('stable',event)">Stable</span>
+        <span class="meter-pill pill-slight" onclick="setMeter('slight',event)">Slight Rise</span>
+        <span class="meter-pill pill-high"   onclick="setMeter('high',event)">High Rise</span>
+        <span class="meter-pill pill-drop"   onclick="setMeter('drop',event)">Possible Drop</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Market Signals</div>
+  <div class="signals-grid section-gap">
+    <div class="signals-card card fade-up">
+      <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text-dark);margin-bottom:13px;">Price Drivers</div>
+      <div class="signal-item"><div class="signal-dot dot-red"></div><div class="signal-text">Crude oil rising globally</div><div class="signal-badge badge-high">High</div></div>
+      <div class="signal-item"><div class="signal-dot dot-amber"></div><div class="signal-text">INR weakening against USD</div><div class="signal-badge badge-med">Medium</div></div>
+      <div class="signal-item"><div class="signal-dot dot-orange"></div><div class="signal-text">Refinery demand rising</div><div class="signal-badge badge-med">Medium</div></div>
+      <div class="signal-item"><div class="signal-dot dot-yellow"></div><div class="signal-text">Global oil market volatility</div><div class="signal-badge badge-low">Low</div></div>
+      <div class="signal-item"><div class="signal-dot dot-orange"></div><div class="signal-text">OPEC+ production outlook</div><div class="signal-badge badge-med">Medium</div></div>
+    </div>
+    <div class="signals-card card fade-up">
+      <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text-dark);margin-bottom:13px;">News Sources</div>
+      <div class="news-sources">
+        <a href="https://economictimes.indiatimes.com/industry/energy/oil-gas" target="_blank" class="news-link">
+          <div class="news-icon" style="background:rgba(255,102,0,0.1);color:#FF6600;">📰</div>
+          <div><div style="font-weight:600;font-size:13px;">Economic Times</div><div style="font-size:11px;color:var(--text-light);">Oil & Gas updates</div></div>
+          <span class="news-arrow">↗</span>
+        </a>
+        <a href="https://www.reuters.com/business/energy/" target="_blank" class="news-link">
+          <div class="news-icon" style="background:rgba(163,107,35,0.1);color:var(--desert);">📡</div>
+          <div><div style="font-weight:600;font-size:13px;">Reuters Energy</div><div style="font-size:11px;color:var(--text-light);">Global energy markets</div></div>
+          <span class="news-arrow">↗</span>
+        </a>
+        <a href="https://www.bloomberg.com/energy" target="_blank" class="news-link">
+          <div class="news-icon" style="background:rgba(0,50,200,0.07);color:#1445cc;">📊</div>
+          <div><div style="font-weight:600;font-size:13px;">Bloomberg Energy</div><div style="font-size:11px;color:var(--text-light);">Market data & insights</div></div>
+          <span class="news-arrow">↗</span>
+        </a>
+        <a href="https://www.moneycontrol.com/news/business/commodities/" target="_blank" class="news-link">
+          <div class="news-icon" style="background:rgba(46,158,107,0.1);color:var(--green);">💹</div>
+          <div><div style="font-weight:600;font-size:13px;">Moneycontrol</div><div style="font-size:11px;color:var(--text-light);">Commodities & fuel</div></div>
+          <span class="news-arrow">↗</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">7-Day Price Trend</div>
+  <div class="chart-card section-gap fade-up">
+    <div class="chart-header">
+      <div class="chart-title">Diesel Price Movement — Last 7 Days</div>
+      <div class="chart-stats">
+        <div class="chart-stat"><div class="chart-stat-val" id="chartHigh">₹95.10</div><div class="chart-stat-lbl">7D High</div></div>
+        <div class="chart-stat"><div class="chart-stat-val" id="chartLow">₹93.50</div><div class="chart-stat-lbl">7D Low</div></div>
+      </div>
+    </div>
+    <div class="chart-wrapper"><canvas id="trendChart"></canvas></div>
+  </div>
+
+  <div class="section-title">Fuel Impact Calculator</div>
+  <div class="calc-card section-gap fade-up">
+    <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--text-dark);margin-bottom:5px;">Fleet Cost Estimator</div>
+    <div style="font-size:13px;color:var(--text-light);margin-bottom:18px;">Calculate extra cost if diesel rises ₹1 tomorrow.</div>
+    <div class="calc-grid">
+      <div class="input-group"><label class="input-label">Number of Trucks</label><input type="number" class="input-field" id="numTrucks" placeholder="e.g. 10" value="10" min="1" oninput="calcFuelCost()"/></div>
+      <div class="input-group"><label class="input-label">Tank Capacity (Litres)</label><input type="number" class="input-field" id="tankCap" placeholder="e.g. 300" value="300" min="50" oninput="calcFuelCost()"/></div>
+    </div>
+    <div class="cost-output">
+      <div class="cost-label">If diesel increases <strong>₹1</strong> tomorrow<br/><span style="font-size:12px;color:var(--text-light);" id="calcSubtext">10 trucks × 300L = 3,000L total</span></div>
+      <div class="cost-amount" id="extraCost">₹3,000</div>
+    </div>
+  </div>
+
+  <div class="section-title">Transport Mode</div>
+  <div class="transport-card section-gap fade-up">
+    <div class="toggle-row">
+      <div class="toggle-label">Route Fuel Estimator</div>
+      <label class="toggle-switch"><input type="checkbox" id="transportToggle" onchange="toggleTransport()"/><span class="toggle-slider"></span></label>
+      <span class="toggle-status" id="transportStatus">OFF</span>
+    </div>
+    <div class="route-form" id="routeForm">
+      <div class="route-grid">
+        <div class="input-group"><label class="input-label">Start City</label><input type="text" class="input-field" id="startCity" placeholder="e.g. Ajmer" value="Ajmer"/></div>
+        <div class="input-group"><label class="input-label">Destination City</label><input type="text" class="input-field" id="destCity" placeholder="e.g. Delhi" value="Delhi"/></div>
+        <div class="input-group"><label class="input-label">Trip Distance (km)</label><input type="number" class="input-field" id="tripDist" placeholder="e.g. 400" value="400" min="1"/></div>
+        <div class="input-group"><label class="input-label">Avg Mileage (km/L)</label><input type="number" class="input-field" id="mileage" placeholder="e.g. 5" value="5" step="0.1" min="1"/></div>
+      </div>
+      <button class="btn-primary btn-full" onclick="calcRoute()" style="margin-top:4px;">Calculate Route Cost</button>
+      <div class="route-result" id="routeResult" style="display:none;">
+        <div class="route-stat"><div class="route-stat-val" id="routeStation">—</div><div class="route-stat-lbl">Start → Destination</div></div>
+        <div class="route-divider"></div>
+        <div class="route-stat"><div class="route-stat-val" id="routeDiesel">—</div><div class="route-stat-lbl">Diesel Required (L)</div></div>
+        <div class="route-stat"><div class="route-stat-val route-highlight" id="routeCost">—</div><div class="route-stat-lbl">Estimated Fuel Cost</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Share Update</div>
+  <div class="whatsapp-card fade-up">
+    <div class="whatsapp-text">
+      <div class="whatsapp-title">📤 Share Diesel Rate Update</div>
+      <div class="whatsapp-desc">Instantly share today's diesel rate and forecast<br/>with your team and drivers via WhatsApp.</div>
+    </div>
+    <a class="btn-whatsapp" href="#" onclick="shareWhatsApp(event)"><span>💬</span> Share Diesel Update</a>
+  </div>
+
+</main>
+</div><!-- end tab-fuel -->
+
+<!-- ═══════════════════════════════════════════
+     TAB 2: ROUTE PLANNER
+═══════════════════════════════════════════ -->
+<div id="tab-route" class="tab-panel">
+<main class="container">
+
+  <div class="section-title">Route Planner</div>
+
+  <!-- Input Card -->
+  <div class="rp-hero fade-up">
+    <div class="rp-title">Approved Route Calculator</div>
+    <div class="rp-subtitle">Authoritative distance & route for commercial transport billing</div>
+    <div class="rp-input-grid">
+      <div class="rp-form-group">
+        <label class="input-label">Origin (City or Location)</label>
+        <input type="text" class="input-field" id="rp-origin" placeholder="e.g. Mumbai, Maharashtra" autocomplete="off"/>
+        <div class="suggestion-list" id="rp-originSuggestions"></div>
+      </div>
+      <div class="rp-form-group">
+        <label class="input-label">Destination (City or Location)</label>
+        <input type="text" class="input-field" id="rp-destination" placeholder="e.g. Delhi, India" autocomplete="off"/>
+        <div class="suggestion-list" id="rp-destinationSuggestions"></div>
+      </div>
+    </div>
+    <button class="btn-primary btn-full" id="rp-calculateBtn" onclick="rpCalculateRoute()" style="margin-top:18px;">Calculate Route</button>
+  </div>
+
+  <!-- Error + Loading -->
+  <div class="rp-error" id="rp-error"></div>
+  <div class="rp-loading" id="rp-loading">
+    <div class="rp-spinner"></div>
+    <div class="rp-loading-text">Calculating Approved Route…</div>
+  </div>
+
+  <!-- Result Card -->
+  <div class="rp-result-card" id="rp-routeResult">
+    <div class="rp-approved-banner">
+      <div class="rp-approved-title">✓ Approved Route — Reliable, Safe & Shortest</div>
+      <div class="rp-approved-sub">This is the ONLY authorized route for billing and trip planning</div>
+    </div>
+    <div class="rp-stats-grid">
+      <div class="rp-stat-box">
+        <div class="rp-stat-lbl">Total Distance</div>
+        <div class="rp-stat-val" id="rp-distance">—</div>
+      </div>
+      <div class="rp-stat-box">
+        <div class="rp-stat-lbl">Estimated Time</div>
+        <div class="rp-stat-val" id="rp-duration">—</div>
+      </div>
+      <div class="rp-stat-box">
+        <div class="rp-stat-lbl">Est. Toll Points</div>
+        <div class="rp-stat-val" id="rp-tolls">—</div>
+      </div>
+    </div>
+    <div class="rp-points">
+      <div class="rp-point">
+        <div class="rp-point-icon rp-icon-a">A</div>
+        <div class="rp-point-text">
+          <div class="rp-point-lbl">Origin Point</div>
+          <div class="rp-point-addr" id="rp-originAddr">—</div>
+        </div>
+      </div>
+      <div class="rp-point">
+        <div class="rp-point-icon rp-icon-b">B</div>
+        <div class="rp-point-text">
+          <div class="rp-point-lbl">Destination Point</div>
+          <div class="rp-point-addr" id="rp-destAddr">—</div>
+        </div>
+      </div>
+    </div>
+    <!-- Navigate button -->
+    <div style="padding:0 22px 22px;">
+      <button class="btn-navigate" id="rp-navigateBtn" onclick="rpConfirmAndProceed()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        CONFIRM &amp; PROCEED TO DRIVER PAGE
+      </button>
+    </div>
+  </div>
+
+  <!-- Landmarks Card -->
+  <div class="rp-landmarks-card" id="rp-landmarksCard" style="display:none;">
+    <button class="rp-landmarks-toggle" id="rp-landmarksToggle" onclick="rpToggleLandmarks()">
+      <span>🗺️ &nbsp;View Route Landmarks &amp; Checkpoints</span>
+      <span class="rp-toggle-chevron" id="rp-chevron">▼</span>
+    </button>
+    <div class="rp-landmarks-body" id="rp-landmarksBody">
+      <div id="rp-landmarksList"></div>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div class="section-title">Route Map</div>
+  <div class="rp-map-card fade-up">
+    <div id="rp-map"></div>
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="rp-disclaimer">
+    Billing and trip planning are calculated strictly as per this Approved Route. Alternate routes are not considered. This route represents the most reliable, safe, and shortest practical path for commercial vehicles.
+  </div>
+
+</main>
+</div><!-- end tab-route -->
+
+<!-- ═══════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════ -->
+<footer>
+  <div class="footer-brand">Roshi Transport Corporation</div>
+  <div class="footer-copy">Copyright © 2026 Roshi Transport Corporation | Logistics Intelligence Platform | All Rights Reserved</div>
+  <div class="footer-tagline">Fuel insights and route intelligence designed for Indian transport networks.</div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ═══════════════════════════════════════════
+   TAB SWITCHER
+═══════════════════════════════════════════ */
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'route' && !rpMapInitialized) {
+    setTimeout(rpInitMap, 80);
+    rpMapInitialized = true;
+  }
+  if (name === 'route' && rpMap) {
+    setTimeout(() => rpMap.invalidateSize(), 120);
+  }
+}
+
+/* ═══════════════════════════════════════════
+   FUEL DASHBOARD LOGIC
+═══════════════════════════════════════════ */
+const statePrices = {
+  'Rajasthan':94.62,'Delhi':87.62,'Gujarat':93.02,'Maharashtra':90.78,
+  'Punjab':95.30,'Haryana':88.97,'Uttar Pradesh':93.45,'Madhya Pradesh':95.10,
+  'Karnataka':89.67,'Tamil Nadu':91.23
+};
+let currentPrice = 94.62, currentState = 'Rajasthan';
+let forecastPrices = [], historicalPrices = [], chartInstance = null;
+
+function fmt(n) { return n.toFixed(2); }
+function fmtCur(n) { return '₹' + n.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+
+function generateForecast(base) {
+  const d = [];
+  for (let i=0;i<3;i++) d.push(parseFloat((base+(i+1)*0.15+(Math.random()*1.4-0.3)*0.4).toFixed(2)));
+  return d;
+}
+function generateHistory(base) {
+  const d = [];
+  for (let i=6;i>=0;i--) d.push(parseFloat((base+(Math.random()*2-1.2)*(i*0.18+0.3)).toFixed(2)));
+  d[6] = base; return d;
+}
+
+function updatePrice() {
+  const v = parseFloat(document.getElementById('manualPrice').value);
+  if (isNaN(v)||v<50||v>200){alert('Please enter a valid diesel price (₹50–₹200).');return;}
+  currentPrice = v; applyUpdate();
+}
+function updateState() {
+  currentState = document.getElementById('stateSelect').value;
+  currentPrice = statePrices[currentState]||94.62;
+  document.getElementById('manualPrice').value = fmt(currentPrice);
+  applyUpdate();
+}
+function applyUpdate() {
+  document.getElementById('currentPriceDisplay').textContent = fmt(currentPrice);
+  document.getElementById('locationDisplay').textContent = currentState;
+  const now = new Date();
+  document.getElementById('lastUpdated').textContent =
+    'Last updated: '+now.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+
+    ', '+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})+' IST';
+  forecastPrices = generateForecast(currentPrice);
+  ['f1','f2','f3'].forEach((id,i)=>{
+    const p = forecastPrices[i], diff = p-currentPrice, up = diff>=0;
+    document.getElementById(id+'Price').textContent = fmt(p);
+    const arrow = document.getElementById(id+'Arrow');
+    arrow.textContent = up?'↑ Rising':'↓ Dropping';
+    arrow.className = 'forecast-arrow '+(up?'arrow-up':'arrow-down');
+    document.getElementById(['f1Diff','f2Diff','f3Diff'][i]).textContent =
+      (up?'+':'')+'₹'+Math.abs(diff).toFixed(2)+' from today';
+  });
+  historicalPrices = generateHistory(currentPrice);
+  updateChart(); updateChartStats(); calcFuelCost(); calcRoute();
+}
+
+function buildChart() {
+  const labels = [];
+  for (let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);labels.push(d.toLocaleDateString('en-IN',{day:'numeric',month:'short'}));}
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,0,200);
+  grad.addColorStop(0,'rgba(227,178,9,0.22)'); grad.addColorStop(1,'rgba(227,178,9,0.01)');
+  chartInstance = new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Diesel Price (₹/L)',data:historicalPrices,borderColor:'#E3B209',backgroundColor:grad,borderWidth:2.5,pointBackgroundColor:'#E3B209',pointBorderColor:'#fff',pointBorderWidth:2,pointRadius:4,pointHoverRadius:6,fill:true,tension:0.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(44,26,6,0.92)',titleFont:{family:'Syne',size:12,weight:'700'},bodyFont:{family:'DM Sans',size:13},titleColor:'#EDCE4D',bodyColor:'#F8F0E2',padding:12,cornerRadius:8,displayColors:false,callbacks:{label:ctx=>'₹'+ctx.raw+' / litre'}}},scales:{x:{grid:{color:'rgba(163,107,35,0.08)',drawBorder:false},ticks:{color:'#A38054',font:{family:'DM Sans',size:11}}},y:{grid:{color:'rgba(163,107,35,0.08)',drawBorder:false},ticks:{color:'#A38054',font:{family:'DM Sans',size:11},callback:v=>'₹'+v},suggestedMin:parseFloat((Math.min(...historicalPrices)-1).toFixed(0)),suggestedMax:parseFloat((Math.max(...historicalPrices)+1).toFixed(0))}}}});
+}
+function updateChart() {
+  if(!chartInstance)return;
+  chartInstance.data.datasets[0].data = historicalPrices;
+  chartInstance.options.scales.y.suggestedMin = parseFloat((Math.min(...historicalPrices)-1).toFixed(0));
+  chartInstance.options.scales.y.suggestedMax = parseFloat((Math.max(...historicalPrices)+1).toFixed(0));
+  chartInstance.update();
+}
+function updateChartStats() {
+  const hi=Math.max(...historicalPrices,...forecastPrices), lo=Math.min(...historicalPrices);
+  document.getElementById('chartHigh').textContent='₹'+fmt(hi);
+  document.getElementById('chartLow').textContent='₹'+fmt(lo);
+}
+
+function setMeter(type,evt) {
+  const configs = {
+    stable:{rotation:'-90deg',label:'Stable',desc:'Diesel prices are stable. No immediate surge expected. Standard fuel planning recommended.',g:'1',y:'0',o:'0',r:'0'},
+    slight:{rotation:'-30deg',label:'Slight Rise',desc:"Prices are showing a mild upward trend. Consider filling fuel tanks before tomorrow's potential rise.",g:'1',y:'1',o:'0',r:'0'},
+    high:{rotation:'30deg',label:'High Rise Expected',desc:'Significant price rise anticipated. Fill all available fuel tanks now to minimize operational costs.',g:'1',y:'1',o:'1',r:'0'},
+    drop:{rotation:'85deg',label:'Possible Drop',desc:'Market signals suggest a possible price reduction. Consider delaying bulk refueling if operationally feasible.',g:'0',y:'0',o:'0',r:'1'}
+  };
+  const c = configs[type];
+  document.getElementById('gaugeNeedle').style.transform = `rotate(${c.rotation})`;
+  document.getElementById('gaugeStatus').textContent = c.label;
+  document.getElementById('meterDesc').textContent = c.desc;
+  [['gaugeGreen',c.g],['gaugeYellow',c.y],['gaugeOrange',c.o],['gaugeRed',c.r]].forEach(([id,v])=>document.getElementById(id).style.opacity=v);
+  document.querySelectorAll('.meter-pill').forEach(p=>p.classList.remove('pill-active'));
+  if(evt&&evt.target) evt.target.classList.add('pill-active');
+}
+
+function calcFuelCost() {
+  const trucks=parseInt(document.getElementById('numTrucks').value)||0;
+  const tank=parseInt(document.getElementById('tankCap').value)||0;
+  const total=trucks*tank;
+  document.getElementById('calcSubtext').textContent=`${trucks} truck${trucks!==1?'s':''} × ${tank}L = ${total.toLocaleString('en-IN')}L total`;
+  document.getElementById('extraCost').textContent=fmtCur(total);
+}
+
+function toggleTransport() {
+  const on=document.getElementById('transportToggle').checked;
+  document.getElementById('routeForm').className=on?'route-form visible':'route-form';
+  const s=document.getElementById('transportStatus');
+  s.textContent=on?'ON':'OFF'; s.className=on?'toggle-status active':'toggle-status';
+}
+function calcRoute() {
+  const from=document.getElementById('startCity').value.trim()||'Start';
+  const to=document.getElementById('destCity').value.trim()||'Destination';
+  const dist=parseFloat(document.getElementById('tripDist').value)||0;
+  const mpg=parseFloat(document.getElementById('mileage').value)||5;
+  const result=document.getElementById('routeResult');
+  if(!dist||!mpg){result.style.display='none';return;}
+  const litres=(dist/mpg).toFixed(1);
+  const cost=(litres*currentPrice).toFixed(0);
+  document.getElementById('routeStation').textContent=from+' → '+to;
+  document.getElementById('routeDiesel').textContent=litres+' L';
+  document.getElementById('routeCost').textContent=fmtCur(parseFloat(cost));
+  result.style.display='grid';
+}
+
+function shareWhatsApp(e) {
+  e.preventDefault();
+  const f1=forecastPrices[0]||(currentPrice+0.23);
+  const rec=f1>currentPrice?'Fill Today — Prices Rising Tomorrow 🔺':'Monitor — Prices May Drop Tomorrow 🔻';
+  const msg=`🚛 *Diesel Rate Update*\n━━━━━━━━━━━━━━\n📍 *Location:* ${currentState}\n\n⛽ *Today:* ₹${fmt(currentPrice)} / L\n📈 *Tomorrow Expected:* ₹${fmt(f1)} / L\n\n✅ *Recommendation:*\n${rec}\n\n━━━━━━━━━━━━━━\n🏢 Shared by *Roshi Transport Corporation*\n🔗 India Diesel Intelligence Dashboard`;
+  window.open('https://api.whatsapp.com/send?text='+encodeURIComponent(msg),'_blank');
+}
+
+/* ═══════════════════════════════════════════
+   ROUTE PLANNER LOGIC (exact from original)
+═══════════════════════════════════════════ */
+let rpMap, rpRouteLayer, rpOriginMarker, rpDestMarker;
+let rpOriginCoords = null, rpDestCoords = null, rpCurrentRouteData = null;
+let rpMapInitialized = false, rpIsCalculating = false;
+const rpSearchCache = new Map();
+const RP_CACHE_EXPIRY = 3600000;
+let rpPendingSearchCtrl = null;
+
+function rpDebounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
+function rpInitMap() {
+  rpMap = L.map('rp-map', {
+    attributionControl: false, zoomControl: true, preferCanvas: true, tap: true, touchZoom: true
+  }).setView([20.5937, 78.9629], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, updateWhenIdle: true, keepBuffer: 2 }).addTo(rpMap);
+  let resizeTimeout;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimeout); resizeTimeout = setTimeout(() => rpMap.invalidateSize(), 250); });
+  window.addEventListener('orientationchange', () => { setTimeout(() => rpMap.invalidateSize(), 300); });
+}
+
+async function rpSearchLocation(query, callback) {
+  if (query.length < 3) { callback([]); return; }
+  const key = query.toLowerCase();
+  const cached = rpSearchCache.get(key);
+  if (cached && (Date.now() - cached.timestamp) < RP_CACHE_EXPIRY) { callback(cached.data); return; }
+  if (rpPendingSearchCtrl) rpPendingSearchCtrl.abort();
+  try {
+    rpPendingSearchCtrl = new AbortController();
+    const tid = setTimeout(() => rpPendingSearchCtrl.abort(), 5000);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=8&addressdetails=1`, { signal: rpPendingSearchCtrl.signal });
+    clearTimeout(tid);
+    const data = await res.json();
+    rpSearchCache.set(key, { data, timestamp: Date.now() });
+    rpPendingSearchCtrl = null;
+    callback(data);
+  } catch(e) {
+    if (e.name !== 'AbortError') console.error('Search error:', e);
+    callback([]);
+  }
+}
+
+const rpDebouncedSearch = rpDebounce((query, cb) => rpSearchLocation(query, cb), 500);
+
+function rpSetupAutocomplete(inputId, suggestionsId, coordsCb) {
+  const input = document.getElementById(inputId);
+  const list  = document.getElementById(suggestionsId);
+  input.addEventListener('input', function() {
+    const q = this.value.trim();
+    if (q.length < 3) { list.classList.remove('active'); return; }
+    rpDebouncedSearch(q, results => {
+      list.innerHTML = '';
+      if (!results.length) { list.classList.remove('active'); return; }
+      const frag = document.createDocumentFragment();
+      results.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        item.innerHTML = `<div class="suggestion-name">${r.display_name.split(',')[0]}</div><div class="suggestion-detail">${r.display_name}</div>`;
+        item.addEventListener('click', e => {
+          e.stopPropagation();
+          input.value = r.display_name;
+          coordsCb({ lat: parseFloat(r.lat), lon: parseFloat(r.lon), name: r.display_name });
+          list.classList.remove('active');
+        });
+        frag.appendChild(item);
+      });
+      list.appendChild(frag);
+      list.classList.add('active');
+    });
+  });
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !list.contains(e.target)) list.classList.remove('active');
+  });
+}
+
+async function rpCalculateRoute() {
+  if (!rpOriginCoords || !rpDestCoords) { rpShowError('Please select both origin and destination from the suggestions.'); return; }
+  if (rpIsCalculating) return;
+  rpIsCalculating = true;
+  document.getElementById('rp-loading').classList.add('active');
+  document.getElementById('rp-error').classList.remove('active');
+  document.getElementById('rp-routeResult').classList.remove('active');
+  document.getElementById('rp-landmarksCard').style.display = 'none';
+  document.getElementById('rp-calculateBtn').disabled = true;
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 10000);
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${rpOriginCoords.lon},${rpOriginCoords.lat};${rpDestCoords.lon},${rpDestCoords.lat}?overview=full&geometries=geojson&steps=true&alternatives=true`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    const data = await res.json();
+    if (data.code !== 'Ok' || !data.routes?.length) throw new Error('No route found');
+    rpCurrentRouteData = data.routes[0];
+    rpDisplayRoute(rpCurrentRouteData);
+    setTimeout(() => rpFindLandmarks(rpCurrentRouteData), 100);
+  } catch(e) {
+    rpShowError(e.name === 'AbortError' ? 'Request timeout. Please try again.' : 'Could not calculate route. Please try different locations.');
+  } finally {
+    document.getElementById('rp-loading').classList.remove('active');
+    document.getElementById('rp-calculateBtn').disabled = false;
+    rpIsCalculating = false;
+  }
+}
+
+function rpDisplayRoute(route) {
+  if (rpRouteLayer) rpMap.removeLayer(rpRouteLayer);
+  if (rpOriginMarker) rpMap.removeLayer(rpOriginMarker);
+  if (rpDestMarker) rpMap.removeLayer(rpDestMarker);
+  const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+  rpRouteLayer = L.polyline(coords, { color: '#E3B209', weight: 6, opacity: 0.85, smoothFactor: 1 }).addTo(rpMap);
+  const mkA = L.divIcon({ className: '', html: '<div style="background:linear-gradient(135deg,#2E9E6B,#66BB6A);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:13px;">A</div>', iconSize:[34,34] });
+  const mkB = L.divIcon({ className: '', html: '<div style="background:linear-gradient(135deg,#D94F2E,#EF5350);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:13px;">B</div>', iconSize:[34,34] });
+  rpOriginMarker = L.marker([rpOriginCoords.lat, rpOriginCoords.lon], {icon:mkA}).addTo(rpMap);
+  rpDestMarker   = L.marker([rpDestCoords.lat,   rpDestCoords.lon],   {icon:mkB}).addTo(rpMap);
+  rpMap.fitBounds(rpRouteLayer.getBounds(), { padding:[50,50], animate:true, duration:0.5 });
+  const distKm   = (route.distance / 1000).toFixed(1);
+  const durH     = Math.floor(route.duration / 3600);
+  const durM     = Math.floor((route.duration % 3600) / 60);
+  const tolls    = Math.max(1, Math.floor(route.distance / 100000));
+  requestAnimationFrame(() => {
+    document.getElementById('rp-distance').textContent = distKm + ' km';
+    document.getElementById('rp-duration').textContent = durH > 0 ? `${durH}h ${durM}m` : `${durM}m`;
+    document.getElementById('rp-tolls').textContent    = tolls;
+    document.getElementById('rp-originAddr').textContent = rpOriginCoords.name;
+    document.getElementById('rp-destAddr').textContent   = rpDestCoords.name;
+    document.getElementById('rp-routeResult').classList.add('active');
+  });
+}
+
+async function rpFindLandmarks(route) {
+  try {
+    const coords = route.geometry.coordinates;
+    const total  = coords.length;
+    const idxs   = [0.2,0.35,0.5,0.65,0.8].map(r => Math.floor(total*r));
+    const landmarks = [];
+    for (let i=0; i<Math.min(idxs.length,5); i++) {
+      const [lon,lat] = coords[idxs[i]];
+      try {
+        const ctrl = new AbortController();
+        const tid  = setTimeout(() => ctrl.abort(), 3000);
+        const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`, {signal:ctrl.signal});
+        clearTimeout(tid);
+        const data = await res.json();
+        if (data?.display_name) {
+          const parts = data.display_name.split(',');
+          const name  = parts[0].trim() || parts[1]?.trim() || 'Checkpoint';
+          const type  = data.address?.city ? 'City' : data.address?.town ? 'Town' : data.address?.village ? 'Village' : data.address?.industrial ? 'Industrial Area' : 'Waypoint';
+          landmarks.push({name, type});
+        }
+      } catch(e) { if (e.name!=='AbortError') console.error('Landmark error:',e); }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    rpDisplayLandmarks(landmarks);
+  } catch(e) { rpDisplayLandmarks([]); }
+}
+
+function rpDisplayLandmarks(landmarks) {
+  const list = document.getElementById('rp-landmarksList');
+  requestAnimationFrame(() => {
+    list.innerHTML = '';
+    if (!landmarks.length) {
+      list.innerHTML = '<div style="text-align:center;color:var(--text-light);font-size:12px;padding:8px;">No landmarks found along this route.</div>';
+    } else {
+      const frag = document.createDocumentFragment();
+      landmarks.forEach(lm => {
+        const el = document.createElement('div');
+        el.className = 'rp-landmark-item';
+        el.innerHTML = `<div class="rp-landmark-name">${lm.name}</div><div class="rp-landmark-type">${lm.type}</div>`;
+        frag.appendChild(el);
+      });
+      list.appendChild(frag);
+    }
+    document.getElementById('rp-landmarksCard').style.display = 'block';
+  });
+}
+
+function rpToggleLandmarks() {
+  const body    = document.getElementById('rp-landmarksBody');
+  const chevron = document.getElementById('rp-chevron');
+  const toggle  = document.getElementById('rp-landmarksToggle');
+  const open    = body.classList.toggle('open');
+  chevron.classList.toggle('open', open);
+  toggle.classList.toggle('open', open);
+}
+
+function rpConfirmAndProceed() {
+  if (!rpCurrentRouteData || !rpOriginCoords || !rpDestCoords) {
+    rpShowError('Route not calculated yet. Please calculate route first.');
+    return;
+  }
+  const distKm = (rpCurrentRouteData.distance / 1000).toFixed(1);
+  const durH   = Math.floor(rpCurrentRouteData.duration / 3600);
+  const durM   = Math.floor((rpCurrentRouteData.duration % 3600) / 60);
+  const tolls  = Math.max(1, Math.floor(rpCurrentRouteData.distance / 100000));
+  const params = new URLSearchParams({
+    origin:      rpOriginCoords.name,
+    destination: rpDestCoords.name,
+    originLat:   rpOriginCoords.lat,
+    originLon:   rpOriginCoords.lon,
+    destLat:     rpDestCoords.lat,
+    destLon:     rpDestCoords.lon,
+    distance:    distKm,
+    duration:    durH > 0 ? `${durH}h ${durM}m` : `${durM}m`,
+    tolls,
+    approved:    'true'
+  });
+  window.location.href = `https://roshitrans.github.io/Track/?${params.toString()}`;
+}
+
+function rpShowError(msg) {
+  const el = document.getElementById('rp-error');
+  requestAnimationFrame(() => { el.textContent = msg; el.classList.add('active'); });
+  setTimeout(() => requestAnimationFrame(() => el.classList.remove('active')), 5000);
+}
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  // Fuel dashboard init
+  historicalPrices = generateHistory(currentPrice);
+  forecastPrices   = generateForecast(currentPrice);
+  buildChart();
+  updateChartStats();
+  ['f1','f2','f3'].forEach((id,i) => {
+    const p = forecastPrices[i], diff = p-currentPrice, up = diff>=0;
+    document.getElementById(id+'Price').textContent = fmt(p);
+    const arrow = document.getElementById(id+'Arrow');
+    arrow.textContent = up?'↑ Rising':'↓ Dropping';
+    arrow.className = 'forecast-arrow '+(up?'arrow-up':'arrow-down');
+    document.getElementById(['f1Diff','f2Diff','f3Diff'][i]).textContent =
+      (up?'+':'')+'₹'+Math.abs(diff).toFixed(2)+' from today';
+  });
+  setMeter('slight', null);
+  calcFuelCost();
+
+  // Route planner autocomplete
+  rpSetupAutocomplete('rp-origin',      'rp-originSuggestions',      c => { rpOriginCoords = c; });
+  rpSetupAutocomplete('rp-destination', 'rp-destinationSuggestions', c => { rpDestCoords   = c; });
+
+  // Keyboard nav
+  document.getElementById('rp-origin').addEventListener('keypress', e => {
+    if (e.key==='Enter') { e.preventDefault(); document.getElementById('rp-destination').focus(); }
+  });
+  document.getElementById('rp-destination').addEventListener('keypress', e => {
+    if (e.key==='Enter' && rpOriginCoords && rpDestCoords) { e.preventDefault(); rpCalculateRoute(); }
+  });
+
+  // Cache cleanup
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k,v] of rpSearchCache.entries()) if (now-v.timestamp > RP_CACHE_EXPIRY) rpSearchCache.delete(k);
+  }, 600000);
+});
+</script>
+</body>
+</html>
